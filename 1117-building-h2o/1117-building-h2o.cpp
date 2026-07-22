@@ -1,11 +1,9 @@
-#include<semaphore>
 
 class H2O {
 private :
- binary_semaphore oxygen_counter{0} ; // default to 0 , block upcoming oxy thread 
- counting_semaphore<2> hydrogen_counter{2}; 
- // max count of 2 for hydrogen  allow max 2 hydrogen thread then block unit oxy thread release it 
- int counter = 0; // count no of hydrogen
+ mutex mtx ;
+ condition_variable cv ;
+ int count=0; 
 
 public:
     H2O() {
@@ -13,21 +11,22 @@ public:
     }
 
     void hydrogen(function<void()> releaseHydrogen) {
-        hydrogen_counter.acquire(); // try to acquire  the space / get block 
-        // releaseHydrogen() outputs "H". Do not change or remove this line.
-        releaseHydrogen();
-        counter++;
-        if(counter==2) {
-            oxygen_counter.release(); // allow new oxygen thread to run 
+     unique_lock<mutex> lock(mtx);
+     while(count==2){
+        cv.wait(lock);
+     }
+     releaseHydrogen();
+     count++;
+     cv.notify_all();
 
-        }
     }
-
     void oxygen(function<void()> releaseOxygen) {
-        oxygen_counter.acquire() ; // try to aquire the space / get block
-        // releaseOxygen() outputs "O". Do not change or remove this line.
+        unique_lock<mutex> lock(mtx);
+        while(count < 2) {
+            cv.wait(lock);
+        }
         releaseOxygen();
-        counter=0;
-        hydrogen_counter.release(2); // incr the  counter by 2 to allow 2 new hydrogen thread 
+        count=0; 
+        cv.notify_all();
     }
 };
